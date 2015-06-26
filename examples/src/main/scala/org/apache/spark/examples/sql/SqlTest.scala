@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.spark.examples.sql
 
 import org.apache.spark.{SparkConf, SparkContext}
@@ -10,6 +27,46 @@ object SqlTest {
     val sqlContext = new SQLContext(sc)
 
     // Importing the SQL context gives access to all the SQL functions and implicit conversions.
+    import sqlContext.implicits._
+
+    val df = sc.parallelize((1 to 100).map(i => Record(i, s"val_$i"))).toDF()
+    // Any RDD containing case classes can be registered as a table.  The schema of the table is
+    // automatically inferred using scala reflection.
+    df.registerTempTable("records")
+
+    // Once tables have been registered, you can run SQL queries over them.
+    println("Result of SELECT *:")
+    sqlContext.sql("SELECT * FROM records").collect().foreach(println)
+
+    // Aggregation queries are also supported.
+    val count = sqlContext.sql("SELECT COUNT(*) FROM records").collect().head.getLong(0)
+    println(s"COUNT(*): $count")
+
+    // The results of SQL queries are themselves RDDs and support all normal RDD functions.  The
+    // items in the RDD are of type Row, which allows you to access each column by ordinal.
+    val rddFromSql = sqlContext.sql("SELECT key, value FROM records WHERE key < 10")
+
+    println("Result of RDD.map:")
+    rddFromSql.map(row => s"Key: ${row(0)}, Value: ${row(1)}").collect().foreach(println)
+
+    // Queries can also be written using a LINQ-like Scala DSL.
+    df.where($"key" === 1).orderBy($"value".asc).select($"key").collect().foreach(println)
+
+    // Write out an RDD as a parquet file.
+    df.write.parquet("pair.parquet")
+
+    // Read in parquet file.  Parquet files are self-describing so the schmema is preserved.
+    val parquetFile = sqlContext.read.parquet("pair.parquet")
+
+    // Queries can be run using the DSL on parequet files just like the original RDD.
+    parquetFile.where($"key" === 1).select($"value".as("a")).collect().foreach(println)
+
+    // These files can also be registered as tables.
+    parquetFile.registerTempTable("parquetFile")
+    sqlContext.sql("SELECT * FROM parquetFile").collect().foreach(println)
+
+
+    // Importing the SQL context gives access to all the SQL functions and implicit conversions.
     //    import sqlContext.implicits._
 
     //    val df = sc.parallelize((1 to 100).map(i => Record(i, s"val_$i"))).toDF()
@@ -17,20 +74,22 @@ object SqlTest {
 
     //    println("Result of SELECT *:")
     //    sqlContext.sql("SELECT * FROM records").collect().foreach(println)
-    import org.apache.spark.sql.types.{FloatType,LongType,StructType,StructField,StringType};
+//    val df = sqlContext.read.json( "examples/src/main/resources/SPARK-8165.json" )
+//
+//    println( df.schema )
+//    println( df.count )
+//    df.select( "key" ).show(5)
+//
+//    df.cache
+//    println( df.select( "key" ).show(5) )
 
-    val dfSchema = StructType( Array(
-      StructField("timestamp",StringType,true),
-      StructField("id",StringType,true),
-      StructField("key",LongType,true),
-      StructField("domain",StringType,true),
-      StructField("point",FloatType,true) ) )
-
-    val df = sqlContext.read.schema( dfSchema ).load( "examples/src/main/resources/SPARK-8165.csv" )
-
-    println( df.schema )
-    println( df.count )
-    println( df.select( "domain" ).show(5) )
+//    sqlContext.sql("create table spark_test(i int) partitioned by (p timestamp);")
+//    sqlContext.sql("alter table spark_test add partition(p=\"2013-01-01 01:00\");")
+    sqlContext.sql(
+      """alter table
+        |  spark_test
+        |add partition(p=CAST("2013-01-01 01:00" AS TIMESTAMP));
+      """.stripMargin )
 
     sc.stop()
   }
