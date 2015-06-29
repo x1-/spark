@@ -18,7 +18,8 @@
 package org.apache.spark.examples.sql
 
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{Row,SQLContext}
+import org.apache.spark.sql.types.{ DecimalType, IntegerType, StructType, StructField }
 
 object SqlTest {
   def main(args: Array[String]) {
@@ -46,24 +47,24 @@ object SqlTest {
     // items in the RDD are of type Row, which allows you to access each column by ordinal.
     val rddFromSql = sqlContext.sql("SELECT key, value FROM records WHERE key < 10")
 
-    println("Result of RDD.map:")
-    rddFromSql.map(row => s"Key: ${row(0)}, Value: ${row(1)}").collect().foreach(println)
-
-    // Queries can also be written using a LINQ-like Scala DSL.
-    df.where($"key" === 1).orderBy($"value".asc).select($"key").collect().foreach(println)
-
-    // Write out an RDD as a parquet file.
-    df.write.parquet("pair.parquet")
-
-    // Read in parquet file.  Parquet files are self-describing so the schmema is preserved.
-    val parquetFile = sqlContext.read.parquet("pair.parquet")
-
-    // Queries can be run using the DSL on parequet files just like the original RDD.
-    parquetFile.where($"key" === 1).select($"value".as("a")).collect().foreach(println)
-
-    // These files can also be registered as tables.
-    parquetFile.registerTempTable("parquetFile")
-    sqlContext.sql("SELECT * FROM parquetFile").collect().foreach(println)
+//    println("Result of RDD.map:")
+//    rddFromSql.map(row => s"Key: ${row(0)}, Value: ${row(1)}").collect().foreach(println)
+//
+//    // Queries can also be written using a LINQ-like Scala DSL.
+//    df.where($"key" === 1).orderBy($"value".asc).select($"key").collect().foreach(println)
+//
+//    // Write out an RDD as a parquet file.
+//    df.write.parquet("pair.parquet")
+//
+//    // Read in parquet file.  Parquet files are self-describing so the schmema is preserved.
+//    val parquetFile = sqlContext.read.parquet("pair.parquet")
+//
+//    // Queries can be run using the DSL on parequet files just like the original RDD.
+//    parquetFile.where($"key" === 1).select($"value".as("a")).collect().foreach(println)
+//
+//    // These files can also be registered as tables.
+//    parquetFile.registerTempTable("parquetFile")
+//    sqlContext.sql("SELECT * FROM parquetFile").collect().foreach(println)
 
 
     // Importing the SQL context gives access to all the SQL functions and implicit conversions.
@@ -85,11 +86,17 @@ object SqlTest {
 
 //    sqlContext.sql("create table spark_test(i int) partitioned by (p timestamp);")
 //    sqlContext.sql("alter table spark_test add partition(p=\"2013-01-01 01:00\");")
-    sqlContext.sql(
-      """alter table
-        |  spark_test
-        |add partition(p=CAST("2013-01-01 01:00" AS TIMESTAMP));
-      """.stripMargin )
+//    sqlContext.sql(
+//      """alter table
+//        |  spark_test
+//        |add partition(p=CAST("2013-01-01 01:00" AS TIMESTAMP));
+//      """.stripMargin )
+
+
+    val schema = StructType(Seq(StructField("id", IntegerType), StructField("value", DecimalType(16, 2))))
+    val rows = sc.parallelize(Seq(Row(1, BigDecimal("0.9")), Row(2, BigDecimal("2.9"))))
+    val df1 = sqlContext.createDataFrame(rows, schema)
+    df1.write.parquet("test.parquet")
 
     sc.stop()
   }
