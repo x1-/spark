@@ -24,6 +24,15 @@ object SqlTest {
       .toDF()
 
     println( df2.schema )
+
+    val json =
+      """{"fields":[
+            {"metadata":{},"name":0,"nullable":true,"type":"long"},
+            {"metadata":{},"name":1,"nullable":true,"type":"long"}],
+          "type":"struct"}
+      """.stripMargin
+
+
     sc.stop()
   }
 
